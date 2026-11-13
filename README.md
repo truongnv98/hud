@@ -2,22 +2,16 @@
 
 A heads-up display for Claude Code: what you need to know at a glance, in one quiet line above the prompt. It starts with your plan's limits and your context window, so you never open a menu to check how much is left.
 
-```
-[ 31 ] 17:10   [ 78 ] Tue 07:00   ( 54 ) Context ⇊        ○ Auto compact   ▼
-```
+![The HUD above the Claude Code prompt: 5 hour at 15% resetting at 17:40, weekly at 73% resetting Tuesday 07:00, context at 33%](docs/band.png)
 
 - **5 hour and weekly limits** as battery gauges, colored by how close you are, each followed by its reset time (24h).
 - **Context window** as a capsule gauge, with **⇊** to compact the chat in one click.
 - **Auto compact**, per chat: switch it on and set a %, and it compacts between turns once the context reaches it.
 - **▼ opens the details**, one line each:
 
-```
-5 Hour   ██░░░│░░░░░░   ~6%/h       3h 24m left
-Weekly   █████░░│░░░░   ~11%/day    3d 7h left
-Context  ███▒░░░░│░░░   Messages 96k  Tools 51k  Other 11k   809k free   auto 40%
-```
+![The details opened: the 5 hour window at about 7.6% an hour with 3h 1m left, the weekly window at about 22% a day and running out in 1d 15h, the context split into Messages, Tools and Other, and a warning that the weekly limit will run out before Tuesday's reset](docs/details.png)
 
-  How fast each limit is going (averaged since its window began), the time left, where it's heading at reset (the `│` mark), what fills the context, and a warning at the bottom when a limit will run out before it resets.
+  How fast each limit is going (averaged since its window began), the time left, where it's heading at reset (the grey mark on each bar), what fills the context, and a warning at the bottom when a limit will run out before it resets.
 
 In a narrow chat the line keeps the gauges and the controls and drops the words. `/quota` turns the band off and on.
 
