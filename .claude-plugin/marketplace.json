@@ -1,0 +1,28 @@
+{
+  "name": "hud",
+  "owner": {
+    "name": "truongnv98",
+    "url": "https://github.com/truongnv98"
+  },
+  "metadata": {
+    "description": "A heads-up display for Claude Code: plan limits and context at a glance, no network requests."
+  },
+  "plugins": [
+    {
+      "name": "hud",
+      "source": "./",
+      "description": "A heads-up display above the Claude Code prompt. For now: your Claude plan's 5 hour and weekly limits, and the context window, as battery gauges, reset times, the rate you're using them at, one-click Compact and per-chat Auto compact. Makes no network requests of its own.",
+      "version": "0.2.0",
+      "license": "MIT",
+      "keywords": [
+        "usage",
+        "quota",
+        "rate limits",
+        "context window",
+        "compact",
+        "auto compact",
+        "offline"
+      ]
+    }
+  ]
+}
