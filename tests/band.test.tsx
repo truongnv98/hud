@@ -745,6 +745,51 @@ test('the Compact button also spins while auto compact runs, then goes back to �
   await ui.unmount()
 })
 
+test('auto compact that fails every try gives up: one toast, no endless retrying, button back to ⇊', async ($, on) => {
+  const percent = { value: 45 }
+  const toasts: string[] = []
+  let attempts = 0
+  const clock = mock.clock(on, { now: NOW })
+  mock.store(on, { 'autoCompact:chat': { isOn: true, at: 40 } })
+  on('session.usage', () => {
+    const u = usage([{ kind: 'seven_day', percentUsed: 10, resetsAt: iso(3 * 24 * HOUR) }])
+    return { value: { ...u, context: { ...u.context, tokens: percent.value * 10_000, percent: percent.value } } }
+  })
+  on('session.start', (_$, e) => ({ cwd: e.cwd }))
+  on('command.register', () => ({ value: { command: 'quota' } }))
+  on('session.compact', () => {
+    attempts += 1
+    throw new Error('refused')
+  })
+  on('command.run', () => {
+    attempts += 1
+    throw new Error('refused')
+  })
+  on('ui.toast', (_$, e) => {
+    toasts.push(e.text)
+    return { value: undefined }
+  })
+  on('ui.log', () => ({ value: undefined }))
+  answerRest(on, [])
+  await $.session.start({ cwd: '.', surface: 'desktop', isInteractive: true })
+  const ui = await opened(await $.ui.mount({ plugin: 'hud', surface: 'desktop', component: 'AbovePrompt', props: PROPS }))
+  // long enough for the first round of tries, and many 3s ticks after it
+  for (let i = 0; i < 40; i++) await clock.advance(3_000)
+  const first = attempts
+  for (let i = 0; i < 40; i++) await clock.advance(3_000)
+  expect(attempts).toBe(first)
+  expect(toasts.filter(t => /could not start/.test(t))).toHaveLength(1)
+  expect(await compactLabel(ui)).toBe('⇊')
+  // below the % clears it: past it again, it tries again
+  percent.value = 10
+  await clock.advance(3_000)
+  percent.value = 45
+  await clock.advance(3_000)
+  await clock.advance(3_000)
+  expect(attempts).toBeGreaterThan(first)
+  await ui.unmount()
+})
+
 test('a narrow chat wraps the details\' text; folded, its line drops the words and keeps figures and controls', async ($, on) => {
   startWorld(on, { value: 16 }, [])
   await $.session.start({ cwd: '.', surface: 'desktop', isInteractive: true })

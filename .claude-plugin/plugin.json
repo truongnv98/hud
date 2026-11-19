@@ -1,6 +1,6 @@
 {
   "name": "hud",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "A heads-up display above the Claude Code prompt. For now: your Claude plan's 5 hour and weekly limits, and the context window, as battery gauges, reset times, the rate you're using them at, one-click Compact and per-chat Auto compact. Makes no network requests of its own.",
   "author": {
     "name": "truongnv98",
