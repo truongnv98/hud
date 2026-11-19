@@ -38,6 +38,8 @@ declare module 'claude-code' {
       /** bumped on every % set: draws the field afresh even when the value is unchanged */
       fieldTick: number
       fieldText: string | null
+      /** the ⇊ button while a manual compact runs: null at rest, else the spinner frame shown */
+      compactFrame: number | null
       /** the desktop app's theme, as its settings (or the OS) have it */
       theme: 'dark' | 'light'
     }

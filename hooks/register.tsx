@@ -7,6 +7,10 @@ const snapshot = atom({ plugin: 'hud', key: 'snapshot' } as const, null)
 const isOn = atom({ plugin: 'hud', key: 'isOn' } as const, true)
 const isExpanded = atom({ plugin: 'hud', key: 'isExpanded' } as const, false)
 const autoCompact = atom({ plugin: 'hud', key: 'autoCompact' } as const, { isOn: false, at: null } as AutoCompact)
+// the ⇊ button while a manual compact runs: null at rest, else the spinner frame shown
+const compactFrame = atom({ plugin: 'hud', key: 'compactFrame' } as const, null as number | null)
+const SPIN = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+const SPIN_MS = 120
 const fieldTick = atom({ plugin: 'hud', key: 'fieldTick' } as const, 0)
 // the % field's text while typing is cleaned (digits only, 3 at most); null: the set %
 const fieldText = atom({ plugin: 'hud', key: 'fieldText' } as const, null as string | null)
@@ -473,10 +477,19 @@ function compactNow($: EngineInterface): void {
   isCompacting = true
   // compacting takes longer than a press or a hook may run, so a timer starts it
   $.clock.after(0, async () => {
+    // the button turns into a spinner while it runs; only a failure is toasted
+    await update($, compactFrame, () => 0)
+    const spin = $.clock.every(SPIN_MS, () => void update($, compactFrame, n => ((n ?? 0) + 1) % SPIN.length))
     try {
       await $.command.run({ command: 'compact' })
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error)
+      $.ui.toast(`Compact failed: ${reason}`)
+      $.ui.log(`hud: compact failed: ${reason}`, { to: 'debug' })
     } finally {
+      spin.cancel()
       isCompacting = false
+      await update($, compactFrame, () => null)
     }
   })
 }
@@ -922,6 +935,7 @@ export const register: Register = on => {
     const auto = await read($, autoCompact)
     const ask = await read($, autoAsk)
     const tick = await read($, fieldTick)
+    const frame = await read($, compactFrame)
     const drawnAt = (await read($, fieldText)) ?? `${auto.at ?? AT_DEFAULT}`
     const submitAt = (value: string) => commitAt($, value)
     const toggleAuto = async () => {
@@ -980,7 +994,7 @@ export const register: Register = on => {
               the press is the icon beside it */}
           {isNarrow ? null : <Text size="footnote" color={MUTED}>Context</Text>}
           <Box key="compactBox">
-            <Button key="compact" label="⇊" plain dimColor hover={LIT} onPress={() => compactNow($)} />
+            <Button key="compact" label={frame === null ? '⇊' : SPIN[frame % SPIN.length]!} plain dimColor={frame === null} hover={LIT} onPress={() => compactNow($)} />
           </Box>
         </Box>
       </Box>

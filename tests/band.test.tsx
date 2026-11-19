@@ -78,7 +78,7 @@ function answerRest(on: On, status: (string | undefined)[]) {
   })
 }
 
-const MEASURE = { context: { window: 1_000_000, tokens: 158_000, percent: 16 }, rateLimits: [] }
+const MEASURE = { context: { window: 1_000_000, tokens: 158_000, percent: 16 }, rateLimits: [], changed: [] }
 
 // the ▼/▲ by its exact label: the kit's label match can't tell the two glyphs apart
 type Finder = { find: (q: { type: 'Button'; key: string }) => Promise<{ props: { label?: unknown } } | undefined> }
@@ -241,6 +241,69 @@ test('the Compact button runs /compact', async ($, on) => {
   expect(ran).toEqual(['compact', 'compact'])
 })
 
+// the ⇊ button's label, by its key
+async function compactLabel(ui: Finder): Promise<string | undefined> {
+  return (await ui.find({ type: 'Button', key: 'compact' }))?.props.label as string | undefined
+}
+
+test('the Compact button spins while /compact runs, then goes back to ⇊, with no toast', async ($, on) => {
+  const toasts: string[] = []
+  const clock = mock.clock(on, { now: NOW })
+  mock.store(on)
+  on('session.usage', () => ({ value: usage([{ kind: 'seven_day', percentUsed: 10, resetsAt: iso(5 * 24 * HOUR) }]) }))
+  answerRest(on, [])
+  on('ui.toast', (_$, e) => {
+    toasts.push(e.text)
+    return { value: undefined }
+  })
+  let finish: () => void = () => {}
+  const running = new Promise<void>(resolve => (finish = resolve))
+  on('command.run', async () => {
+    await running
+    return { text: '' }
+  })
+  await $.session.measure(MEASURE)
+
+  const ui = await opened(await $.ui.mount({ plugin: 'hud', surface: 'desktop', component: 'AbovePrompt', props: PROPS }))
+  expect(await compactLabel(ui)).toBe('⇊')
+  await ui.press({ key: 'compact' })
+  await clock.advance(1)
+  const first = await compactLabel(ui)
+  expect(first).not.toBe('⇊')
+  // it keeps turning while the compact runs
+  await clock.advance(400)
+  expect(await compactLabel(ui)).not.toBe('⇊')
+  expect(await compactLabel(ui)).not.toBe(first)
+  finish()
+  await clock.advance(1)
+  expect(await compactLabel(ui)).toBe('⇊')
+  expect(toasts).toEqual([])
+  await ui.unmount()
+})
+
+test('the Compact button toasts only when /compact fails, and goes back to ⇊', async ($, on) => {
+  const toasts: string[] = []
+  const clock = mock.clock(on, { now: NOW })
+  mock.store(on)
+  on('session.usage', () => ({ value: usage([{ kind: 'seven_day', percentUsed: 10, resetsAt: iso(5 * 24 * HOUR) }]) }))
+  answerRest(on, [])
+  on('ui.toast', (_$, e) => {
+    toasts.push(e.text)
+    return { value: undefined }
+  })
+  on('ui.log', () => ({ value: undefined }))
+  // nothing answers command.run, so the run is refused and rejects
+  await $.session.measure(MEASURE)
+
+  const ui = await opened(await $.ui.mount({ plugin: 'hud', surface: 'desktop', component: 'AbovePrompt', props: PROPS }))
+  await ui.press({ key: 'compact' })
+  await clock.advance(1)
+  expect(toasts).toHaveLength(1)
+  expect(toasts[0]).toMatch(/^Compact failed: /)
+  expect(await compactLabel(ui)).toBe('⇊')
+  await ui.unmount()
+})
+
 test('makes no network request: no login handle, no usage service, no exact count', async ($, on) => {
   const asked: string[] = []
   const clock = mock.clock(on, { now: NOW })
@@ -371,7 +434,7 @@ test('at rest the band is one line: each limit by its % and reset, no names; the
     expect(await ui.find({ text: /^[A-Z][a-z]{2} \d\d:\d\d$/ })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: 'Context' })).toBeDefined()
     // the context's %: a capsule on the desktop, the figure in text on the terminal
-    if (surface === 'desktop') expect(await ui.find({ type: 'Svg', alt: 'Gauge: context 16% used' })).toBeDefined()
+    if (surface === 'desktop') expect((await ui.findAll({ type: 'Svg' })).some(el => el.props.alt === 'Gauge: context 16% used')).toBe(true)
     else expect(await ui.find({ type: 'Text', text: '16%' })).toBeDefined()
     // every control is there, chromeless, and lights under the pointer
     for (const key of ['compact', 'expand']) {
@@ -421,7 +484,7 @@ test('auto compact: the switch shows the field, and it compacts between turns on
   expect(ran).toEqual([])
   expect((await ui.find({ type: 'Input' }))?.props.value).toBe('99')
   // below 15 becomes 15, each time; over 99 is 99 each time; blank is 30
-  for (const [typed, shown] of [['5', '15'], ['0', '15'], ['14', '15'], ['100', '99'], ['250', '99'], ['', '30'], ['20', '20']]) {
+  for (const [typed, shown] of ([['5', '15'], ['0', '15'], ['14', '15'], ['100', '99'], ['250', '99'], ['', '30'], ['20', '20']] as [string, string][])) {
     await ui.input({ key: await fieldKey(ui), text: typed })
     expect((await ui.find({ type: 'Input' }))?.props.value).toBe(shown)
   }
@@ -665,7 +728,7 @@ test('a narrow chat wraps the details\' text; folded, its line drops the words a
     expect((await ui.findAll({ type: 'Text' })).filter(t => t.text === 'Context')).toHaveLength(0)
     expect(await ui.find({ type: 'Button', key: 'compact' })).toBeDefined()
     expect(await ui.find({ type: 'Text', text: /\d\d:\d\d$/ })).toBeUndefined()
-    if (surface === 'desktop') expect(await ui.find({ type: 'Svg', alt: 'Gauge: context 16% used' })).toBeDefined()
+    if (surface === 'desktop') expect((await ui.findAll({ type: 'Svg' })).some(el => el.props.alt === 'Gauge: context 16% used')).toBe(true)
     else expect(await ui.find({ type: 'Text', text: '16%' })).toBeDefined()
     for (const key of ['auto', 'compact', 'expand']) expect(await ui.find({ type: 'Button', key })).toBeDefined()
     await ui.unmount()
