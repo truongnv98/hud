@@ -472,14 +472,27 @@ let isBusy = false
 let isCompacting = false
 let lastPercent = 0
 
+// the ⇊ button spins for as long as any compaction runs, a pressed one or auto compact's
+let spinTimer: { cancel(): void } | null = null
+async function beginSpin($: EngineInterface): Promise<void> {
+  spinTimer?.cancel()
+  await update($, compactFrame, () => 0)
+  spinTimer = $.clock.every(SPIN_MS, () => void update($, compactFrame, n => ((n ?? 0) + 1) % SPIN.length))
+}
+async function endCompacting($: EngineInterface): Promise<void> {
+  spinTimer?.cancel()
+  spinTimer = null
+  isCompacting = false
+  await update($, compactFrame, () => null)
+}
+
 function compactNow($: EngineInterface): void {
   if (isCompacting) return
   isCompacting = true
   // compacting takes longer than a press or a hook may run, so a timer starts it
   $.clock.after(0, async () => {
     // the button turns into a spinner while it runs; only a failure is toasted
-    await update($, compactFrame, () => 0)
-    const spin = $.clock.every(SPIN_MS, () => void update($, compactFrame, n => ((n ?? 0) + 1) % SPIN.length))
+    await beginSpin($)
     try {
       await $.command.run({ command: 'compact' })
     } catch (error) {
@@ -487,9 +500,7 @@ function compactNow($: EngineInterface): void {
       $.ui.toast(`Compact failed: ${reason}`)
       $.ui.log(`hud: compact failed: ${reason}`, { to: 'debug' })
     } finally {
-      spin.cancel()
-      isCompacting = false
-      await update($, compactFrame, () => null)
+      await endCompacting($)
     }
   })
 }
@@ -508,6 +519,7 @@ function autoCompactNow($: EngineInterface, attempt = 1): void {
     isCompacting = true
   }
   $.clock.after(attempt === 1 ? 1_000 : AUTO_RETRY_MS, async () => {
+    if (attempt === 1) await beginSpin($)
     try {
       // the desktop app (an SDK session) has no direct compaction: there /compact runs
       // as a turn of its own, so it is typed, as the Compact button does
@@ -516,7 +528,7 @@ function autoCompactNow($: EngineInterface, attempt = 1): void {
         : (await $.command.run({ command: 'compact' }), undefined)
       // held as stuck while the figures are read again, so no tick fires a second one
       await setHold($, { stuck: true })
-      isCompacting = false
+      await endCompacting($)
       if (result && 'skip' in result && result.skip) $.ui.toast(`Auto compact was skipped: ${result.skip}`)
       lastSnapshot = ''
       const usage = await $.session.usage({ breakdown: 'summary' })
@@ -535,7 +547,7 @@ function autoCompactNow($: EngineInterface, attempt = 1): void {
         return autoCompactNow($, attempt + 1)
       }
       if (attempt < AUTO_TRIES) return autoCompactNow($, attempt + 1)
-      isCompacting = false
+      await endCompacting($)
       $.ui.toast(`Auto compact could not start: ${reason}`)
       $.ui.log(`hud: auto compact failed: ${reason}`, { to: 'debug' })
     }
@@ -590,7 +602,7 @@ async function loadAuto($: EngineInterface): Promise<void> {
 // in. After a set the field is drawn afresh (fieldTick), which also drops its focus
 const AT_MIN = 15
 // the % whenever there is none: a blank field, a first switch-on
-const AT_DEFAULT = 30
+const AT_DEFAULT = 40
 const AT_MAX = 99
 let draftAt: string | null = null
 
