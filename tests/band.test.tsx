@@ -483,8 +483,8 @@ test('auto compact: the switch shows the field, and it compacts between turns on
   await ui.input({ key: await fieldKey(ui), text: '100' })
   expect(ran).toEqual([])
   expect((await ui.find({ type: 'Input' }))?.props.value).toBe('99')
-  // below 15 becomes 15, each time; over 99 is 99 each time; blank is 30
-  for (const [typed, shown] of ([['5', '15'], ['0', '15'], ['14', '15'], ['100', '99'], ['250', '99'], ['', '30'], ['20', '20']] as [string, string][])) {
+  // below 15 becomes 15, each time; over 99 is 99 each time; blank is 40
+  for (const [typed, shown] of ([['5', '15'], ['0', '15'], ['14', '15'], ['100', '99'], ['250', '99'], ['', '40'], ['20', '20']] as [string, string][])) {
     await ui.input({ key: await fieldKey(ui), text: typed })
     expect((await ui.find({ type: 'Input' }))?.props.value).toBe(shown)
   }
@@ -601,8 +601,8 @@ test('"After my next compact" holds through a % flickering below, until a real c
   await ui.unmount()
 })
 
-test('auto compact is per chat: another chat opens with it off, at 30%; turned on past it, it asks and waits', async ($, on) => {
-  const percent: { value: number; isCompacted?: boolean } = { value: 35 }
+test('auto compact is per chat: another chat opens with it off, at 40%; turned on past it, it asks and waits', async ($, on) => {
+  const percent: { value: number; isCompacted?: boolean } = { value: 45 }
   const ran: string[] = []
   // another chat has it on at 20%
   const clock = startWorld(on, percent, ran, [], 'Compact now', { 'autoCompact:other': { isOn: true, at: 20 } })
@@ -614,8 +614,8 @@ test('auto compact is per chat: another chat opens with it off, at 30%; turned o
   const ui = await opened(await $.ui.mount({ plugin: 'hud', surface: 'desktop', component: 'AbovePrompt', props: PROPS }))
   expect((await ui.find({ type: 'Button', key: 'auto' }))?.props.label).toBe('○')
   await ui.press({ key: 'auto' })
-  expect((await ui.find({ type: 'Input' }))?.props.value).toBe('30')
-  expect(await ui.find({ type: 'Text', text: 'at 35%, compact' })).toBeDefined()
+  expect((await ui.find({ type: 'Input' }))?.props.value).toBe('40')
+  expect(await ui.find({ type: 'Text', text: 'at 45%, compact' })).toBeDefined()
   // left unanswered: as "after my next compact"
   await $.turn.complete(TURN)
   await clock.advance(3_000)
@@ -625,7 +625,7 @@ test('auto compact is per chat: another chat opens with it off, at 30%; turned o
   await clock.advance(3_000)
   expect(await ui.find({ type: 'Text', text: /^at \d+%, compact$/ })).toBeUndefined()
   percent.isCompacted = false
-  percent.value = 31
+  percent.value = 41
   await $.turn.complete(TURN)
   await clock.advance(1_100)
   expect(ran).toEqual(['compact'])
@@ -713,6 +713,36 @@ test('where the session cannot compact directly (the desktop app), auto compact 
   await clock.advance(1_100)
   await clock.advance(2_000)
   expect(ran).toEqual(['compact'])
+})
+
+test('the Compact button also spins while auto compact runs, then goes back to ⇊', async ($, on) => {
+  const percent = { value: 45 }
+  const clock = mock.clock(on, { now: NOW })
+  mock.store(on, { 'autoCompact:chat': { isOn: true, at: 40 } })
+  on('session.usage', () => {
+    const u = usage([{ kind: 'seven_day', percentUsed: 10, resetsAt: iso(3 * 24 * HOUR) }])
+    return { value: { ...u, context: { ...u.context, tokens: percent.value * 10_000, percent: percent.value } } }
+  })
+  on('session.start', (_$, e) => ({ cwd: e.cwd }))
+  on('command.register', () => ({ value: { command: 'quota' } }))
+  let finish: () => void = () => {}
+  const running = new Promise<void>(resolve => (finish = resolve))
+  on('session.compact', async () => {
+    await running
+    percent.value = 8
+    return { skip: 'answered by the test' } as never
+  })
+  on('ui.toast', () => ({ value: undefined }))
+  answerRest(on, [])
+  await $.session.start({ cwd: '.', surface: 'desktop', isInteractive: true })
+  const ui = await opened(await $.ui.mount({ plugin: 'hud', surface: 'desktop', component: 'AbovePrompt', props: PROPS }))
+  await clock.advance(1_100)
+  await clock.advance(400)
+  expect(await compactLabel(ui)).not.toBe('⇊')
+  finish()
+  await clock.advance(1)
+  expect(await compactLabel(ui)).toBe('⇊')
+  await ui.unmount()
 })
 
 test('a narrow chat wraps the details\' text; folded, its line drops the words and keeps figures and controls', async ($, on) => {
