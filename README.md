@@ -5,8 +5,8 @@ A heads-up display for Claude Code: what you need to know at a glance, in one qu
 ![The HUD above the Claude Code prompt: 5 hour at 15% resetting at 17:40, weekly at 73% resetting Tuesday 07:00, context at 33%](docs/band.png)
 
 - **5 hour and weekly limits** as battery gauges, colored by how close you are, each followed by its reset time (24h).
-- **Context window** as a capsule gauge, with **⇊** to compact the chat in one click.
-- **Auto compact**, per chat: switch it on and set a %, and it compacts between turns once the context reaches it.
+- **Context window** as a capsule gauge, with **⇊** to compact the chat in one click. While any compaction runs (pressed or automatic) the button spins; it toasts only if the compaction fails.
+- **Auto compact**, per chat: switch it on and set a % (40 by default), and it compacts between turns once the context reaches it. If it cannot compact, it says so once and waits until the context drops below the % before trying again.
 - **▼ opens the details**, one line each:
 
 ![The details opened: the 5 hour window at about 7.6% an hour with 3h 1m left, the weekly window at about 22% a day and running out in 1d 15h, the context split into Messages, Tools and Other, and a warning that the weekly limit will run out before Tuesday's reset](docs/details.png)

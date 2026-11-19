@@ -492,8 +492,8 @@ function compactNow($: EngineInterface): void {
   // compacting takes longer than a press or a hook may run, so a timer starts it
   $.clock.after(0, async () => {
     // the button turns into a spinner while it runs; only a failure is toasted
-    await beginSpin($)
     try {
+      await beginSpin($)
       await $.command.run({ command: 'compact' })
     } catch (error) {
       const reason = error instanceof Error ? error.message : String(error)
@@ -519,8 +519,8 @@ function autoCompactNow($: EngineInterface, attempt = 1): void {
     isCompacting = true
   }
   $.clock.after(attempt === 1 ? 1_000 : AUTO_RETRY_MS, async () => {
-    if (attempt === 1) await beginSpin($)
     try {
+      if (attempt === 1) await beginSpin($)
       // the desktop app (an SDK session) has no direct compaction: there /compact runs
       // as a turn of its own, so it is typed, as the Compact button does
       const result = canCompactDirectly
@@ -548,6 +548,9 @@ function autoCompactNow($: EngineInterface, attempt = 1): void {
       }
       if (attempt < AUTO_TRIES) return autoCompactNow($, attempt + 1)
       await endCompacting($)
+      // held as stuck: otherwise the next 3s tick, still past the %, starts it all again,
+      // for ever. Dropping below the % clears it, as after a compaction that left it past
+      await setHold($, { stuck: true })
       $.ui.toast(`Auto compact could not start: ${reason}`)
       $.ui.log(`hud: auto compact failed: ${reason}`, { to: 'debug' })
     }
